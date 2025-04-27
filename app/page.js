@@ -64,166 +64,153 @@ export default function Home() {
   useEffect(() => {
     const cleanupFns = [];
 
-    Object.keys(stages).forEach((stageId) => {
-      const stageEl = elementsRef.current.get(`stage-${stageId}`);
-      if (!stageEl) return;
+    const setupDragAndDrop = () => {
+      Object.keys(stages).forEach((stageId) => {
+        const stageEl = elementsRef.current.get(`stage-${stageId}`);
+        if (!stageEl) return;
 
-      const stageDrop = dropTargetForElements({
-        element: stageEl,
-        getData: () => ({ stageId }),
-        canDrop: ({ source }) => source.data.type === "task",
-        onDragEnter: () => stageEl.classList.add("bg-blue-50"),
-        onDragLeave: () => stageEl.classList.remove("bg-blue-50"),
-        onDrop: ({ source, self }) => {
-          stageEl.classList.remove("bg-blue-50");
-
-          const { stageId: fromStageId, id: taskId } = source.data;
-          const toStageId = self.data.stageId;
-
-          if (fromStageId === toStageId) return;
-
-          setStages((prev) => {
-            const fromTasks = [...prev[fromStageId]];
-            const toTasks = [...prev[toStageId]];
-
-            const taskIndex = fromTasks.findIndex((t) => t.id === taskId);
-            if (taskIndex === -1) return prev;
-
-            const [task] = fromTasks.splice(taskIndex, 1);
-            toTasks.push(task);
-
-            return { ...prev, [fromStageId]: fromTasks, [toStageId]: toTasks };
-          });
-        },
-      });
-
-      cleanupFns.push(stageDrop);
-
-      stages[stageId].forEach((task, taskIndex) => {
-        const taskEl = elementsRef.current.get(`task-${task.id}`);
-        if (!taskEl) return;
-
-        const taskDrag = draggable({
-          element: taskEl,
-          getInitialData: () => ({
-            type: "task",
-            id: task.id,
-            stageId,
-            index: taskIndex,
-          }),
-          onDragStart: () => taskEl.classList.add("opacity-50"),
-          onDrop: () => taskEl.classList.remove("opacity-50"),
-        });
-
-        const taskDrop = dropTargetForElements({
-          element: taskEl,
-          getData: () => ({
-            type: "task",
-            id: task.id,
-            stageId,
-            index: taskIndex,
-          }),
-          canDrop: ({ source }) =>
-            source.data.type === "task" && source.data.id !== task.id,
-          onDragEnter: () => taskEl.classList.add("bg-blue-100"),
-          onDragLeave: () => taskEl.classList.remove("bg-blue-100"),
+        // Ensure stage is always a drop target
+        const stageDrop = dropTargetForElements({
+          element: stageEl,
+          getData: () => ({ stageId }),
+          canDrop: ({ source }) => source.data.type === "task",
+          onDragEnter: () => stageEl.classList.add("bg-blue-50"),
+          onDragLeave: () => stageEl.classList.remove("bg-blue-50"),
           onDrop: ({ source, self }) => {
-            const { stageId: fromStageId, index: fromIndex } = source.data;
-            const { stageId: toStageId, index: toIndex } = self.data;
+            stageEl.classList.remove("bg-blue-50");
+            const { stageId: fromStageId, id: taskId } = source.data;
+            const toStageId = self.data.stageId;
 
-            if (fromStageId !== toStageId) return;
+            if (fromStageId === toStageId) return;
 
             setStages((prev) => {
-              const tasks = [...prev[stageId]];
-              const [movedTask] = tasks.splice(fromIndex, 1);
-              tasks.splice(toIndex, 0, movedTask);
+              const fromTasks = [...prev[fromStageId]];
+              const toTasks = [...prev[toStageId]];
 
-              return { ...prev, [stageId]: tasks };
+              const taskIndex = fromTasks.findIndex((t) => t.id === taskId);
+              if (taskIndex === -1) return prev;
+
+              const [task] = fromTasks.splice(taskIndex, 1);
+              toTasks.push(task);
+
+              return {
+                ...prev,
+                [fromStageId]: fromTasks,
+                [toStageId]: toTasks,
+              };
             });
           },
         });
 
-        cleanupFns.push(taskDrag, taskDrop);
+        cleanupFns.push(stageDrop);
+      });
 
-        task.subtasks.forEach((subtask, subtaskIndex) => {
-          const subtaskEl = elementsRef.current.get(`subtask-${subtask.id}`);
-          if (!subtaskEl) return;
+      Object.entries(stages).forEach(([stageId, tasks]) => {
+        tasks.forEach((task, taskIndex) => {
+          const taskEl = elementsRef.current.get(`task-${task.id}`);
+          if (!taskEl) return;
 
-          const subtaskDrag = draggable({
-            element: subtaskEl,
+          const taskDrag = draggable({
+            element: taskEl,
             getInitialData: () => ({
-              type: "subtask",
-              id: subtask.id,
-              taskId: task.id,
+              type: "task",
+              id: task.id,
               stageId,
-              index: subtaskIndex,
+              index: taskIndex,
             }),
-            onDragStart: () => subtaskEl.classList.add("opacity-50"),
-            onDrop: () => subtaskEl.classList.remove("opacity-50"),
+            onDragStart: () => taskEl.classList.add("opacity-50"),
+            onDrop: () => taskEl.classList.remove("opacity-50"),
           });
 
-          const subtaskDrop = dropTargetForElements({
-            element: subtaskEl,
-            getData: () => ({
-              type: "subtask",
-              id: subtask.id,
-              taskId: task.id,
-              stageId,
-              index: subtaskIndex,
-            }),
-            canDrop: ({ source }) =>
-              source.data.type === "subtask" && source.data.id !== subtask.id,
-            onDragEnter: () => subtaskEl.classList.add("bg-blue-100"),
-            onDragLeave: () => subtaskEl.classList.remove("bg-blue-100"),
-            onDrop: ({ source, self }) => {
-              const {
-                stageId: fromStageId,
-                taskId: fromTaskId,
-                index: fromIndex,
-              } = source.data;
-              const {
-                stageId: toStageId,
-                taskId: toTaskId,
-                index: toIndex,
-              } = self.data;
+          cleanupFns.push(taskDrag);
 
-              setStages((prev) => {
-                const newStages = JSON.parse(JSON.stringify(prev)); // Deep copy
-                const fromTask = newStages[fromStageId].find(
-                  (t) => t.id === fromTaskId
-                );
-                const toTask = newStages[toStageId].find(
-                  (t) => t.id === toTaskId
-                );
+          task.subtasks.forEach((subtask, subtaskIndex) => {
+            const subtaskEl = elementsRef.current.get(`subtask-${subtask.id}`);
+            if (!subtaskEl) return;
 
-                if (!fromTask || !toTask) return prev;
+            const subtaskDrag = draggable({
+              element: subtaskEl,
+              getInitialData: () => ({
+                type: "subtask",
+                id: subtask.id,
+                taskId: task.id,
+                stageId,
+                index: subtaskIndex,
+              }),
+              onDragStart: () => subtaskEl.classList.add("opacity-50"),
+              onDrop: () => subtaskEl.classList.remove("opacity-50"),
+            });
 
-                const fromSubtasks = [...fromTask.subtasks];
-                const toSubtasks =
-                  fromTaskId === toTaskId ? fromSubtasks : [...toTask.subtasks];
+            const subtaskDrop = dropTargetForElements({
+              element: subtaskEl,
+              getData: () => ({
+                type: "subtask",
+                id: subtask.id,
+                taskId: task.id,
+                stageId,
+                index: subtaskIndex,
+              }),
+              canDrop: ({ source }) =>
+                source.data.type === "subtask" && source.data.id !== subtask.id,
+              onDragEnter: () => subtaskEl.classList.add("bg-blue-100"),
+              onDragLeave: () => subtaskEl.classList.remove("bg-blue-100"),
+              onDrop: ({ source, self }) => {
+                const {
+                  stageId: fromStageId,
+                  taskId: fromTaskId,
+                  index: fromIndex,
+                } = source.data;
+                const {
+                  stageId: toStageId,
+                  taskId: toTaskId,
+                  index: toIndex,
+                } = self.data;
 
-                const [movedSubtask] = fromSubtasks.splice(fromIndex, 1);
+                setStages((prev) => {
+                  const newStages = JSON.parse(JSON.stringify(prev));
 
-                if (fromTaskId === toTaskId) {
-                  // Reorder within same task
+                  const fromTask = newStages[fromStageId]?.find(
+                    (t) => t.id === fromTaskId
+                  );
+                  const toTask = newStages[toStageId]?.find(
+                    (t) => t.id === toTaskId
+                  );
+
+                  if (!fromTask || !toTask) return prev;
+
+                  const fromSubtasks = [...fromTask.subtasks];
+                  const toSubtasks =
+                    fromTaskId === toTaskId
+                      ? fromSubtasks
+                      : [...toTask.subtasks];
+
+                  if (
+                    fromIndex < 0 ||
+                    fromIndex >= fromSubtasks.length ||
+                    toIndex < 0 ||
+                    toIndex > toSubtasks.length
+                  ) {
+                    return prev;
+                  }
+
+                  const [movedSubtask] = fromSubtasks.splice(fromIndex, 1);
                   toSubtasks.splice(toIndex, 0, movedSubtask);
-                  fromTask.subtasks = toSubtasks;
-                } else {
-                  // Move to different task
-                  toSubtasks.splice(toIndex, 0, movedSubtask);
+
                   fromTask.subtasks = fromSubtasks;
                   toTask.subtasks = toSubtasks;
-                }
 
-                return newStages;
-              });
-            },
+                  return newStages;
+                });
+              },
+            });
+
+            cleanupFns.push(subtaskDrag, subtaskDrop);
           });
-
-          cleanupFns.push(subtaskDrag, subtaskDrop);
         });
       });
-    });
+    };
+
+    setupDragAndDrop();
 
     return () => {
       cleanupFns.forEach((fn) => fn());
@@ -236,9 +223,12 @@ export default function Home() {
         <div
           key={stageId}
           ref={(el) => el && elementsRef.current.set(`stage-${stageId}`, el)}
-          className="w-1/4 p-4 border rounded bg-gray-50"
+          className="w-1/4 p-4 border rounded bg-gray-50 min-h-[300px]" // Ensure stage itself is a drop target
         >
           <h2 className="font-bold capitalize mb-4">{stageId}</h2>
+          {tasks.length === 0 && (
+            <div className="text-gray-400 italic">No tasks yet</div>
+          )}
           {tasks.map((task) => (
             <div
               key={task.id}
